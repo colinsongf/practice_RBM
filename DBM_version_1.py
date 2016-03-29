@@ -8,8 +8,9 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams
 
 
 class DBM:
-    def __init__(self, numpt_rng, theano_rng=None, n_in=784, hidden_layers_size=[500, 100], n_out=10):
+    def __init__(self, batch_size, numpt_rng, theano_rng=None, n_in=784, hidden_layers_size=[500, 100], n_out=10):
         self.rbm_layers = []
+        self.batch_size = batch_size
         self.params = []
         self.n_layers = len(hidden_layers_size)
         self.current_index = 0
@@ -77,18 +78,18 @@ class DBM:
         return T.sum(T.log(1 + T.exp(acc)), axis=1)
 
     def free_energy(self, current_inputs, index):
-        print 'calculate the free energy..'
         '''
             对于能量函数，三种类型：最底层，最上层，中间层
             分别为当前偏执项、其余层激活似然值得和
         '''
-        energy = theano.shared(value=np.zeros(1,dtype=theano.config.floatX), name='energy', borrow=True)
+        energy = theano.shared(value=np.zeros(self.batch_size,dtype=theano.config.floatX), name='energy', borrow=True)
         if index == 0:
             self.current_index = index
             b_term = self.rbm_layers[self.current_index].b_term_v
             temp = self.current_index
             while self.current_index < len(self.rbm_layers) - 1:
                 [activation, z] = self.propup(current_inputs)
+                print activation.shape
                 energy += self.log_dot(activation)
                 current_inputs = z
                 self.current_index += 1
@@ -172,7 +173,7 @@ class DBM:
         batch_begin = index * batch_size
         batch_end = batch_begin + batch_size
         pretrain_fns = []
-
+        self.batch_size = batch_size
         for ind in xrange(len(self.rbm_layers)):
             cost, updates = self.cost_update(ind, learning_rate, k_step=k)
             fn = theano.function(
